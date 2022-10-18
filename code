@@ -1,0 +1,342 @@
+[/code]
+#include <SoftwareSerial.h>
+#include <AFMotor.h>
+AF_DCMotor motor_L(4);    // 모터드라이버 L293D  3: M3에 연결,  4: M4에 연결
+AF_DCMotor motor_R(3); 
+char rec_data;
+bool rec_chk = false;
+
+float i;
+int j;
+
+//초음파센서 출력핀(trig)과 입력핀(echo), 변수, 함수 선언//
+int TrigPin = A0;
+int EchoPin = A1;
+int TrigPinR = A8;
+int EchoPinR = A9;
+int TrigPinL= A10;
+int EchoPinL=A11;
+long duration, durationL, durationR, distance, distanceL, distanceR;
+//duration,distance=가운데, durationL,distanceL=왼쪽 durationR, distanceR=오른쪽
+
+void Distance_Measurement();
+void Distance_MeasurementR();
+void Distance_MeasurementL();
+void Obstacle_Check();
+void Stop();
+
+void setup()
+{  
+  Serial.begin(9600);
+  Serial1.begin(9600);
+  Serial.println("Eduino Smart Car Start!");
+  
+  pinMode (TrigPin, OUTPUT); //초음파 앞
+  pinMode (EchoPin, INPUT);
+  pinMode (TrigPinR, OUTPUT);//초음파 오른쪽
+  pinMode(EchoPinR, INPUT); 
+  pinMode (TrigPinL, OUTPUT); //초음파 왼쪽
+  pinMode (EchoPinL, INPUT);
+ 
+  motor_L.setSpeed(255);              // 왼쪽 모터의 속도   
+  motor_L.run(RELEASE);
+  motor_R.setSpeed(255);              // 오른쪽 모터의 속도   
+  motor_R.run(RELEASE);
+  delay(500);
+}
+
+void loop()
+{
+   if(Serial1.available()){         // 블루투스 명령 수신
+     rec_data = Serial1.read();
+     Serial.write(rec_data);
+     rec_chk = true;
+   }
+   delay(100);
+  if(rec_data=='b')
+  { //장애물 체크. b코너
+    Obstacle_Check();
+    delay(5);
+  }
+  else if(rec_data=='w')
+  {//앞으로 전진 
+      motor_L.run(FORWARD);
+      motor_R.run(FORWARD);
+      motor_L.setSpeed(150);
+      motor_R.setSpeed(150);
+      delay(100);
+  }
+  else if(rec_data=='a')
+  {
+    //제자리 왼쪽으로 회전
+      motor_L.run(BACKWARD);
+      motor_R.run(FORWARD);
+      motor_L.setSpeed(150);
+      motor_R.setSpeed(150);
+      delay(100);
+  }
+  else if(rec_data=='d')
+  {
+    //제자리 오른쪽으로 회전
+    motor_L.run(FORWARD);
+    motor_R.run(BACKWARD);
+    motor_L.setSpeed(150);
+    motor_R.setSpeed(150);
+    delay(100);
+  }
+  else if(rec_data=='x')
+  {
+     motor_L.run(BACKWARD);
+     motor_R.run(BACKWARD);
+     motor_L.setSpeed(150);
+     motor_R.setSpeed(150);
+     delay(100);
+  }
+    else if(rec_data == 's'){ 
+          if(rec_chk == true){
+       for (i=150; i>=0; i=i-20) {
+          motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+           delay(10);
+       }  
+       motor_L.run(RELEASE);       motor_R.run(RELEASE);
+    }
+      } // Stop   
+ }  
+
+///////장애물체크/////////
+void Obstacle_Check()
+{
+  Distance_Measurement();
+  Distance_MeasurementR();
+  Distance_MeasurementL();
+
+  if(distance>150)
+  {
+    if(distanceR>100&&distanceR<200)
+    {
+      motor_L.run(FORWARD);  motor_R.run(FORWARD);
+    for (i=0; i<150; i=i+20) { 
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+    for (i=150; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+      delay(5);
+    }
+    
+   else if(distanceR>=200)
+    { 
+      if(distanceL<=200)
+      {
+      motor_L.run(FORWARD);  motor_R.run(FORWARD);  
+    for (i=0; i<150; i=i+30) {
+        motor_L.setSpeed(i); motor_R.setSpeed(i/1.2);
+        delay(2);
+    }
+       for (i=150; i<0; i=i-30) {
+      motor_L.setSpeed(i);motor_R.setSpeed(i/1.2);  
+      delay(2);
+    }
+      delay(5);
+    }
+    else if(distanceL>200)
+    {
+      motor_L.run(FORWARD);  motor_R.run(FORWARD);
+    for (i=0; i<150; i=i+20) { 
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+    for (i=150; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+      delay(5); 
+    }
+    }
+  
+    else if(distanceR<=100)
+    {         
+        motor_L.run(FORWARD);  motor_R.run(FORWARD);
+    for (i=0; i<150; i=i+30) {
+        
+        motor_L.setSpeed(i/1.2);  motor_R.setSpeed(i);
+        delay(2);
+    }
+    for (i=150; i<0; i=i-30) {
+      motor_L.setSpeed(i/1.2);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+      delay(5);
+    }
+  }
+
+  //distance가 15미만
+  else if(distance<=150 && distanceR>200 && distanceL<=200)
+  {
+    if(distance<=90&&distanceL<=60)
+    {
+      Back();
+      delay(10);
+    }
+    else
+    {
+      Right();
+      delay(5);
+    } 
+  }
+  
+else  if(distance<=150 && distanceR>200 && distanceL>200)
+  {
+    if(distanceR>distanceL)
+    {
+  Right();
+  delay(5);
+  }
+  else
+  {
+    Left();
+    delay(5);
+  }
+  }
+  else if(distance<=150 && distanceR<200 && distanceL>200)
+  {     
+    if(distance<=90&&distanceR<=60)
+    {
+      Back();
+      delay(10);
+    }
+    else
+    {
+      Left();
+      delay(5);
+    } 
+ 
+  
+}
+else if(distance<=150 && distanceR<200 && distanceL<=200)
+  {    
+     motor_L.run(FORWARD);  motor_R.run(FORWARD);
+    for (i=0; i<150; i=i+20) { 
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+    for (i=150; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+      delay(5); 
+  }
+  Serial.println();
+}
+
+////////거리감지///////////
+void  Distance_Measurement(){
+
+  digitalWrite(TrigPin, LOW);
+  delay(2);
+  digitalWrite(TrigPin, HIGH);  // trigPin에서 초음파 발생(echoPin도 HIGH)
+  delayMicroseconds(5);
+  digitalWrite(TrigPin, LOW);
+  duration = pulseIn(EchoPin, HIGH);    // echoPin 이 HIGH를 유지한 시간을 저장 한다.
+  distance = ((float)(340 * duration) / 1000) / 2;
+
+  delay(5);
+
+}
+void Distance_MeasurementR(){
+
+  digitalWrite(TrigPinR, LOW);
+  delay(2);
+  digitalWrite(TrigPinR, HIGH);  // trigPin에서 초음파 발생(echoPin도 HIGH)
+  delayMicroseconds(5);
+  digitalWrite(TrigPinR, LOW);
+  durationR = pulseIn(EchoPinR, HIGH);    // echoPin 이 HIGH를 유지한 시간을 저장 한다.
+  distanceR = ((float)(340 * durationR) / 1000) / 2; 
+
+  delay(5);
+  }
+
+void Distance_MeasurementL(){
+
+  digitalWrite(TrigPinL, LOW);
+  delay(2);
+  digitalWrite(TrigPinL, HIGH);  // trigPin에서 초음파 발생(echoPin도 HIGH)
+  delayMicroseconds(5);
+  digitalWrite(TrigPinL, LOW);
+  durationL = pulseIn(EchoPinL, HIGH);    // echoPin 이 HIGH를 유지한 시간을 저장 한다.
+  distanceL = ((float)(340 * durationL) / 1000) / 2;
+
+  delay(5);
+
+
+}
+void Stop(){
+   motor_L.run(RELEASE);       motor_R.run(RELEASE);
+   for (i=200; i>=0; i=i-20) {
+          motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+          delay(2);
+   }
+}
+
+void Forward(){    
+    motor_L.run(FORWARD);  motor_R.run(FORWARD);
+    for (i=0; i<200; i=i+20) { 
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+    for (i=200; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+}
+
+void Backward(){
+    motor_L.run(BACKWARD);  motor_R.run(BACKWARD);
+    for (i=0; i<200; i=i+20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+    for (i=200; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+}
+
+void Right(){      
+    motor_L.run(FORWARD);  motor_R.run(BACKWARD);  
+    for (i=0; i<150; i=i+20) {
+        motor_L.setSpeed(i);  motor_R.setSpeed(i);
+        delay(2);
+    }
+    for (i=150; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+}
+
+void Left(){         
+    motor_L.run(BACKWARD);  motor_R.run(FORWARD);
+    for (i=0; i<150; i=i+20) {
+        motor_L.setSpeed(i);  motor_R.setSpeed(i);
+        delay(2);
+    }
+    for (i=150; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+}
+
+void Back(){
+    motor_L.run(BACKWARD);  motor_R.run(BACKWARD);
+    for (i=0; i<150; i=i+20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+    for (i=150; i<0; i=i-20) {
+      motor_L.setSpeed(i);  motor_R.setSpeed(i);  
+      delay(2);
+    }
+} 
+[/code]
